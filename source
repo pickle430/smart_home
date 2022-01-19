@@ -1,0 +1,121 @@
+#include "DHT.h"
+#include <Servo.h>
+#include <SoftwareSerial.h>
+#define DHTPIN 12
+#define DHTTYPE DHT11
+SoftwareSerial BTSerial(4, 5);
+DHT dht(DHTPIN, DHTTYPE);
+Servo window;
+
+int Vo = A0;
+int V_LED = 3;
+float Vo_value = 0;
+float Voltage = 0;
+float dustDensity = 0;
+
+int servo = 6; 
+int state_1 = 0;
+int state_2 = 0;
+char c = 'c';
+char read;
+int n=0;
+
+void setup() {
+  // put your setup code here, to run once:
+  Serial.begin(9600);
+  BTSerial.begin(9600);
+  dht.begin();
+  pinMode(V_LED, OUTPUT);
+  pinMode(Vo, INPUT);
+  window.attach(servo);  // 서보모터를 6번핀에 연결
+  window.write(180); // 서보모토의 기본값을 180도로 설정
+}
+
+void loop() {
+  // put your main code here, to run repeatedly:
+  float humidity = dht.readHumidity();
+  float temperature = dht.readTemperature();
+ 
+   
+  // 온도와 습도값을 시리얼 모니터에 출력해 줍니다.
+  Serial.print("온도 : ");Serial.print((int)temperature); Serial.print(" *C, ");
+  Serial.print("습도 : ");Serial.print((int)humidity); Serial.print(" %, ");
+
+
+  int level = analogRead(A1);  // 수분센서의 신호를 측정합니다.
+    
+  if(level > 10 && state_1 > 0) {
+    Serial.print("비 : O (");
+    state_1++;
+  }
+  else if(level > 10) {
+    Serial.print("비 : X (");
+    state_1++;
+  }  
+  else {
+    Serial.print("비 : X (");
+    state_1 = 0;
+  }
+  Serial.print(level);
+
+  digitalWrite(V_LED,LOW);
+  delayMicroseconds(280);
+  Vo_value = analogRead(Vo);
+  delayMicroseconds(40);
+  digitalWrite(V_LED,HIGH);
+  delayMicroseconds(9680);
+
+  Voltage = Vo_value * 5.0 / 1024.0;
+  dustDensity = (Voltage - 0.3)/0.005;
+  Serial.print("), 미세먼지농도: ");
+  Serial.print(dustDensity);
+  if(dustDensity>100)
+    state_2++;
+  else
+    state_2 = 0;
+  
+  if(c == 'a') {
+    Serial.println(", AUTO");
+    if(temperature < 10 || humidity > 50 || (level>10 && state_1>1) || (dustDensity>100 && state_2>1))
+      window.write(180);
+    else
+      window.write(80); 
+  }
+  if(c == 'o') {
+    Serial.println(", Open");
+    window.write(80);
+  }
+  if(c == 'c') {
+    Serial.println(", Close");
+    window.write(180);
+  }
+    
+  if (BTSerial.available())
+  {
+    read = BTSerial.read();
+    if(read == 'o' || read == 'c' || read == 'a')
+      c = read;
+  }
+/*
+  if (n==30){
+    BTSerial.print("temperature:");
+    BTSerial.print(temperature);
+    BTSerial.println("*C");
+    BTSerial.print("humidity:");
+    BTSerial.print(humidity);
+    BTSerial.println("%");
+    BTSerial.print("rain:");
+    if(level > 10 && state_1 > 0) 
+      BTSerial.println("O");
+    else
+      BTSerial.println("X");
+    BTSerial.print("dustdensity:");
+    BTSerial.print(dustDensity);
+    BTSerial.println("%");
+    
+    n=0;
+  }
+    */
+  delay(300);
+  //n++;
+}
